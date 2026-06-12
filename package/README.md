@@ -24,6 +24,10 @@ Works alongside other mods. Only changes the `maxStack` of food item data
 (`FoodSpoon` / `FoodFork`, plus `Drink` if enabled), so it does not touch
 recipes, cooking, or anything else.
 
+Placing a stacked dish on a serving table only puts one plate down and keeps the
+rest in your inventory (the base serving logic would otherwise delete the whole
+stack).
+
 ## Install
 
 Requires [BepInEx](https://thunderstore.io/c/ale-and-tale-tavern/p/BepInEx/BepInExPack/).
