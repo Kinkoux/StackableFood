@@ -1,0 +1,3 @@
+# build intermediates
+src/bin/
+src/obj/

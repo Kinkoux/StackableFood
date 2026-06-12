@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>KinkoCraft.StackableFood</AssemblyName>
+    <Product>Stackable Food</Product>
+    <Version>1.0.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>portable</DebugType>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <!-- Compile against the game's own Unity-mono BCL (so ILGenerator etc. resolve
+         from the same mscorlib HarmonyX uses). -->
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <NoWarn>$(NoWarn);CS1701;CS1702;CS0436</NoWarn>
+
+    <!-- Adjust these two paths if the game / BepInEx live elsewhere. -->
+    <GameManaged>C:\Program Files (x86)\Steam\steamapps\common\Ale and Tale Tavern\Ale and Tale Tavern_Data\Managed</GameManaged>
+    <BepInExCore>C:\Users\Burak\AppData\Roaming\Thunderstore Mod Manager\DataFolder\AleAndTaleTavern\profiles\Default\BepInEx\core</BepInExCore>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(GameManaged)\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(BepInExCore)\BepInEx.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="$(BepInExCore)\0Harmony.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
