@@ -16,7 +16,7 @@ food goes to 99; install this one alone and food goes to 10.
 `BepInEx/config/KinkoCraft.StackableFood.cfg`
 
 - `StandaloneMaxStack` (default `10`) — stack size used when ItemStackerFix is **not** installed. Ignored when it is (forced to 99).
-- `IncludeDrinks` (default `false`) — also make drinks (beer, juice, etc.) stackable, not just plated food.
+- `IncludeDrinks` (default `true`) — make drinks (beer, juice, etc.) stackable too. Set to `false` to leave drinks unstacked.
 
 ## Compatibility
 
@@ -24,9 +24,10 @@ Works alongside other mods. Only changes the `maxStack` of food item data
 (`FoodSpoon` / `FoodFork`, plus `Drink` if enabled), so it does not touch
 recipes, cooking, or anything else.
 
-Placing a stacked dish on a serving table only puts one plate down and keeps the
-rest in your inventory (the base serving logic would otherwise delete the whole
-stack).
+Serving a stacked dish — onto a serving table, by hand to a customer, or via a
+waiter helper — only consumes one plate and keeps the rest of the stack (the base
+serving logic would otherwise delete the whole stack). Holding the serve key on a
+serving table fills every free tray it can from your stacks instead of just one.
 
 ## Install
 
