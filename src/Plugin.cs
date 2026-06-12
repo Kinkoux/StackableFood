@@ -16,7 +16,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.7";
+		public const string Version = "1.0.8";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
@@ -423,25 +423,18 @@ namespace KinkoCraft.StackableFood
 		[HarmonyTranspiler]
 		private static IEnumerable<CodeInstruction> Fix_BarrelDispense(IEnumerable<CodeInstruction> instructions)
 		{
-			ConstructorInfo itemCtor = AccessTools.Constructor(typeof(Item), new[] { typeof(ItemData) });
-			MethodInfo makeOne = AccessTools.Method(typeof(WorldSourceStackFix), nameof(MakeOne));
 			FieldInfo maxStackFld = AccessTools.Field(typeof(ItemData), nameof(ItemData.maxStack));
 			FieldInfo amountFld = AccessTools.Field(typeof(Item), nameof(Item.amount));
 			MethodInfo dispenseAmt = AccessTools.Method(typeof(WorldSourceStackFix), nameof(DispenseAmount));
 
 			List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-			int ctorSwaps = 0, amountSwaps = 0;
+			int ctorSwaps = SwapItemCtors(code);
+			int amountSwaps = 0;
 			for (int i = 0; i < code.Count; i++)
 			{
-				// `new Item(itemData)` -> MakeOne(itemData): same stack shape (ItemData -> Item).
-				if (code[i].opcode == OpCodes.Newobj && code[i].operand as ConstructorInfo == itemCtor)
-				{
-					code[i] = new CodeInstruction(OpCodes.Call, makeOne);
-					ctorSwaps++;
-				}
 				// The `ldfld ItemData::maxStack` feeding `stfld Item::amount` (not the
 				// `maxStack > 1` guard, which is followed by a comparison) -> DispenseAmount.
-				else if (code[i].opcode == OpCodes.Ldfld && code[i].operand as FieldInfo == maxStackFld
+				if (code[i].opcode == OpCodes.Ldfld && code[i].operand as FieldInfo == maxStackFld
 					&& i + 1 < code.Count && code[i + 1].opcode == OpCodes.Stfld
 					&& code[i + 1].operand as FieldInfo == amountFld)
 				{
@@ -469,29 +462,49 @@ namespace KinkoCraft.StackableFood
 		[HarmonyTranspiler]
 		private static IEnumerable<CodeInstruction> Fix_ItemDispenser(IEnumerable<CodeInstruction> instructions)
 		{
-			ConstructorInfo itemCtor = AccessTools.Constructor(typeof(Item), new[] { typeof(ItemData) });
-			MethodInfo makeOne = AccessTools.Method(typeof(WorldSourceStackFix), nameof(MakeOne));
-
-			int swaps = 0;
 			List<CodeInstruction> code = new List<CodeInstruction>(instructions);
-			for (int i = 0; i < code.Count; i++)
-			{
-				if (code[i].opcode == OpCodes.Newobj && code[i].operand as ConstructorInfo == itemCtor)
-				{
-					code[i] = new CodeInstruction(OpCodes.Call, makeOne);
-					swaps++;
-				}
-			}
-			if (swaps == 0)
+			if (SwapItemCtors(code) == 0)
 			{
 				StackableFoodPlugin.Log.LogWarning(
-					"WorldSourceStackFix: no `new Item(itemData)` found in ItemDispenser.TakeServerRpc; " +
+					"WorldSourceStackFix: no Item(itemData) construction found in ItemDispenser.TakeServerRpc; " +
 					"barrel dispensers may still hand out full stacks.");
 			}
 			return code;
 		}
 
-		/// <summary>Builds an item like `new Item(data)` but gives food/drink amount 1.</summary>
+		// Item is a struct, so `new Item(data)` compiles two ways: `newobj` when the value
+		// is used directly (e.g. passed as an argument) and `ldloca + call .ctor` when it is
+		// assigned to a local. Swap both to a "one for food/drink" equivalent.
+		//   newobj Item::.ctor(ItemData)         -> call MakeOne(ItemData) : Item
+		//   call   instance void Item::.ctor(..) -> call InitOne(ref Item, ItemData) : void
+		private static int SwapItemCtors(List<CodeInstruction> code)
+		{
+			ConstructorInfo itemCtor = AccessTools.Constructor(typeof(Item), new[] { typeof(ItemData) });
+			MethodInfo makeOne = AccessTools.Method(typeof(WorldSourceStackFix), nameof(MakeOne));
+			MethodInfo initOne = AccessTools.Method(typeof(WorldSourceStackFix), nameof(InitOne));
+			int swaps = 0;
+			for (int i = 0; i < code.Count; i++)
+			{
+				if (code[i].operand as ConstructorInfo != itemCtor)
+				{
+					continue;
+				}
+				if (code[i].opcode == OpCodes.Newobj)
+				{
+					code[i] = new CodeInstruction(OpCodes.Call, makeOne);
+					swaps++;
+				}
+				else if (code[i].opcode == OpCodes.Call)
+				{
+					code[i] = new CodeInstruction(OpCodes.Call, initOne);
+					swaps++;
+				}
+			}
+			return swaps;
+		}
+
+		/// <summary>Builds an item like `new Item(data)` but gives food/drink amount 1.
+		/// Replaces a `newobj Item::.ctor(ItemData)` (struct constructed as a value).</summary>
 		public static Item MakeOne(ItemData data)
 		{
 			Item it = new Item(data);
@@ -500,6 +513,18 @@ namespace KinkoCraft.StackableFood
 				it.amount = 1;
 			}
 			return it;
+		}
+
+		/// <summary>In-place form of <see cref="MakeOne"/>. Replaces a
+		/// `call instance void Item::.ctor(ItemData)` (struct constructed into a local),
+		/// which the compiler emits via `ldloca + call` rather than `newobj`.</summary>
+		public static void InitOne(ref Item item, ItemData data)
+		{
+			item = new Item(data);
+			if (data != null && ServingStackFix.IsServable(data.type))
+			{
+				item.amount = 1;
+			}
 		}
 
 		/// <summary>Replacement for a raw `itemData.maxStack` read used as a produced amount.</summary>
