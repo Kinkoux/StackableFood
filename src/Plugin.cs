@@ -16,7 +16,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.8";
+		public const string Version = "1.0.10";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
@@ -468,6 +468,25 @@ namespace KinkoCraft.StackableFood
 				StackableFoodPlugin.Log.LogWarning(
 					"WorldSourceStackFix: no Item(itemData) construction found in ItemDispenser.TakeServerRpc; " +
 					"barrel dispensers may still hand out full stacks.");
+			}
+			return code;
+		}
+
+		// The combine station that turns ingredients (e.g. an empty mug + supply) into a
+		// finished drink — confirmed as the in-game "barrel" via a dispense stack trace.
+		// ItemCombiner.InteractServerRpc builds the result with `new Item(_recipeData
+		// .itemData)` and never overrides the amount (the ItemCreated event it fires uses 1),
+		// so the ctor's maxStack default leaks through and every combine yields 10/99.
+		[HarmonyPatch(typeof(ItemCombiner), "InteractServerRpc")]
+		[HarmonyTranspiler]
+		private static IEnumerable<CodeInstruction> Fix_ItemCombiner(IEnumerable<CodeInstruction> instructions)
+		{
+			List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+			if (SwapItemCtors(code) == 0)
+			{
+				StackableFoodPlugin.Log.LogWarning(
+					"WorldSourceStackFix: no Item(itemData) construction found in ItemCombiner.InteractServerRpc; " +
+					"combine stations may still hand out full stacks.");
 			}
 			return code;
 		}
