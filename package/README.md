@@ -29,6 +29,10 @@ waiter helper — only consumes one plate and keeps the rest of the stack (the b
 serving logic would otherwise delete the whole stack). Holding the serve key on a
 serving table fills every free tray it can from your stacks instead of just one.
 
+Selling a food/drink stack at the shop pays for the whole stack (per-unit price ×
+amount). The base price formula assumed food never stacks, so it would otherwise
+pay for roughly one item while taking the entire stack.
+
 ## Install
 
 Requires [BepInEx](https://thunderstore.io/c/ale-and-tale-tavern/p/BepInEx/BepInExPack/).

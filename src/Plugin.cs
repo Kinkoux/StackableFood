@@ -16,7 +16,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.3";
+		public const string Version = "1.0.4";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
@@ -268,6 +268,53 @@ namespace KinkoCraft.StackableFood
 		private static bool IsServable(ItemData.Type type)
 		{
 			return type == ItemData.Type.FoodFork || type == ItemData.Type.FoodSpoon || type == ItemData.Type.Drink;
+		}
+
+		// --- 4) Selling a stack pays for the whole stack, not one unit --------------
+		// ItemManager.GetItemSellPrice was written when food had maxStack == 1, so its
+		// price is the value of ONE dish. Its stack branch (price * amount / maxStack)
+		// assumes price means a full maxStack-sized stack — true for vanilla stackables,
+		// false for food. After we raise maxStack, selling a food stack removes all of it
+		// but pays for ~1. Recompute food/drink sell price as per-unit value * amount.
+		//
+		// Postfix runs last, so it also corrects ItemStackerFix's shop-sell price (it
+		// patches the same method with a prefix). Harmless if food turns out unsellable.
+		[HarmonyPatch(typeof(ItemManager), nameof(ItemManager.GetItemSellPrice))]
+		[HarmonyPostfix]
+		private static void FixFoodSellPrice(Item item, ItemData itemData, ref ushort __result)
+		{
+			if (itemData == null || !IsServable(itemData.type) || item.amount <= 1)
+			{
+				return;
+			}
+			// Per-unit value: base price with the same rarity scaling vanilla applies.
+			// Food has no durability/charge, so those branches don't apply.
+			float perUnit = itemData.price;
+			if (itemData.hasRarity)
+			{
+				if (itemData.shopRarityPrices != null && itemData.shopRarityPrices.Count > 0)
+				{
+					perUnit = itemData.shopRarityPrices[item.rarity];
+				}
+				else if (item.rarity == ItemData.Rarity.Uncommon)
+				{
+					perUnit *= 1.2f;
+				}
+				else if (item.rarity == ItemData.Rarity.Rare)
+				{
+					perUnit *= 1.6f;
+				}
+				else if (item.rarity == ItemData.Rarity.Epic)
+				{
+					perUnit *= 2.2f;
+				}
+				else if (item.rarity == ItemData.Rarity.Legendary)
+				{
+					perUnit *= 3f;
+				}
+			}
+			long total = (long)(int)perUnit * item.amount;
+			__result = (ushort)(total > ushort.MaxValue ? ushort.MaxValue : total);
 		}
 
 		/// <summary>
