@@ -16,7 +16,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.6";
+		public const string Version = "1.0.7";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
@@ -454,6 +454,39 @@ namespace KinkoCraft.StackableFood
 				StackableFoodPlugin.Log.LogWarning(
 					"WorldSourceStackFix: no dispense sites found in ItemCharger.InteractServerRpc; " +
 					"barrels may still hand out full stacks.");
+			}
+			return code;
+		}
+
+		// The literal barrel/keg "dispenser" (ItemDispenser, e.g. InteractiveObject.Type
+		// .BarrelDispencer). TakeServerRpc builds the drink with `new Item(itemData)` and only
+		// overrides the amount when `givenItemAmount != 0`. Barrels are configured with
+		// givenItemAmount == 0 ("a full stack"), so the override is skipped and the ctor's
+		// maxStack default leaks through — every tap yields 10/99. Swapping the ctor to
+		// MakeOne makes that fall-through give one for food/drink (maxStack stays high, so
+		// taps still merge). A configured givenItemAmount (e.g. 5) still wins, unchanged.
+		[HarmonyPatch(typeof(ItemDispenser), "TakeServerRpc")]
+		[HarmonyTranspiler]
+		private static IEnumerable<CodeInstruction> Fix_ItemDispenser(IEnumerable<CodeInstruction> instructions)
+		{
+			ConstructorInfo itemCtor = AccessTools.Constructor(typeof(Item), new[] { typeof(ItemData) });
+			MethodInfo makeOne = AccessTools.Method(typeof(WorldSourceStackFix), nameof(MakeOne));
+
+			int swaps = 0;
+			List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+			for (int i = 0; i < code.Count; i++)
+			{
+				if (code[i].opcode == OpCodes.Newobj && code[i].operand as ConstructorInfo == itemCtor)
+				{
+					code[i] = new CodeInstruction(OpCodes.Call, makeOne);
+					swaps++;
+				}
+			}
+			if (swaps == 0)
+			{
+				StackableFoodPlugin.Log.LogWarning(
+					"WorldSourceStackFix: no `new Item(itemData)` found in ItemDispenser.TakeServerRpc; " +
+					"barrel dispensers may still hand out full stacks.");
 			}
 			return code;
 		}

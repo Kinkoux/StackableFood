@@ -1,6 +1,6 @@
 {
     "name": "StackableFood",
-    "version_number": "1.0.6",
+    "version_number": "1.0.7",
     "website_url": "https://github.com/Kinkoux/StackableFood",
     "description": "Makes food stackable in your inventory (10 per slot, or 99 with ItemStackerFix installed).",
     "dependencies": [
