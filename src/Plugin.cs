@@ -11,7 +11,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.0";
+		public const string Version = "1.0.1";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
