@@ -33,6 +33,10 @@ Selling a food/drink stack at the shop pays for the whole stack (per-unit price 
 amount). The base price formula assumed food never stacks, so it would otherwise
 pay for roughly one item while taking the entire stack.
 
+Taking a drink/food from an infinite source (a barrel/keg placed in the world)
+gives one, not a full stack. The source's default amount is its max stack size,
+which used to be 1 for drinks.
+
 ## Install
 
 Requires [BepInEx](https://thunderstore.io/c/ale-and-tale-tavern/p/BepInEx/BepInExPack/).

@@ -16,7 +16,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.4";
+		public const string Version = "1.0.5";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
@@ -60,6 +60,7 @@ namespace KinkoCraft.StackableFood
 			Harmony harmony = new Harmony(PluginMeta.Guid);
 			harmony.PatchAll(typeof(FoodStackPatch));
 			harmony.PatchAll(typeof(ServingStackFix));
+			harmony.PatchAll(typeof(WorldSourceStackFix));
 
 			Log.LogInfo($"{PluginMeta.Name} v{PluginMeta.Version} loaded.");
 		}
@@ -265,7 +266,7 @@ namespace KinkoCraft.StackableFood
 			return stage != null && stage.ToString() == "Execute";
 		}
 
-		private static bool IsServable(ItemData.Type type)
+		internal static bool IsServable(ItemData.Type type)
 		{
 			return type == ItemData.Type.FoodFork || type == ItemData.Type.FoodSpoon || type == ItemData.Type.Drink;
 		}
@@ -371,6 +372,44 @@ namespace KinkoCraft.StackableFood
 				return true;
 			}
 			return false;
+		}
+	}
+
+	/// <summary>
+	/// Stops "infinite" world sources — barrels/kegs placed in the level as CollectibleNet
+	/// objects — from handing out a whole stack of a now-stackable drink/food.
+	///
+	/// A pre-placed source spawns with item.dataId == 0, and CollectibleNet.OnNetworkSpawn
+	/// fills its amount with itemData.maxStack. Vanilla food/drink maxStack was 1, so the
+	/// barrel gave one; once we raise maxStack, the same code hands out 10/99 at a time.
+	/// We clamp that initial fill back to 1 for food/drink. Dropped-item collectibles
+	/// (dataId already set, carrying a real amount) hit a different branch and are untouched.
+	/// </summary>
+	public class WorldSourceStackFix
+	{
+		// __state carries "this spawn just default-initialized its item" from prefix to
+		// postfix — we can only tell before OnNetworkSpawn runs, but can only clamp after.
+		[HarmonyPatch(typeof(CollectibleNet), "OnNetworkSpawn")]
+		[HarmonyPrefix]
+		private static void DetectFreshSource(CollectibleNet __instance, out bool __state)
+		{
+			__state = __instance.IsServer && __instance.item != null && __instance.item.Value.dataId == 0;
+		}
+
+		[HarmonyPatch(typeof(CollectibleNet), "OnNetworkSpawn")]
+		[HarmonyPostfix]
+		private static void ClampFreshSource(CollectibleNet __instance, bool __state)
+		{
+			if (!__state || __instance.itemData == null || !ServingStackFix.IsServable(__instance.itemData.type))
+			{
+				return;
+			}
+			Item v = __instance.item.Value;
+			if (v.amount > 1)
+			{
+				v.amount = 1;
+				__instance.item.Value = v;
+			}
 		}
 	}
 }
