@@ -33,8 +33,9 @@ Selling a food/drink stack at the shop pays for the whole stack (per-unit price 
 amount). The base price formula assumed food never stacks, so it would otherwise
 pay for roughly one item while taking the entire stack.
 
-Taking a drink/food from an infinite source (a barrel/keg placed in the world)
-gives one, not a full stack. The source's default amount is its max stack size,
+Filling a mug at a barrel/keg dispenser, or taking from an infinite world source,
+gives one drink per tap (which then stacks in your bag) instead of a full stack at
+once. These dispensers default the produced amount to the item's max stack size,
 which used to be 1 for drinks.
 
 ## Install

@@ -16,7 +16,7 @@ namespace KinkoCraft.StackableFood
 	{
 		public const string Guid = "KinkoCraft.StackableFood";
 		public const string Name = "Stackable Food";
-		public const string Version = "1.0.5";
+		public const string Version = "1.0.6";
 
 		// ItemStackerFix ("ItemStack99 Safe"). When this mod is present we hand the
 		// stacking cap up to 99 so the two mods agree; its own AddNewItem patch already
@@ -410,6 +410,73 @@ namespace KinkoCraft.StackableFood
 				v.amount = 1;
 				__instance.item.Value = v;
 			}
+		}
+
+		// --- Barrel / keg dispenser (ItemCharger): give one drink, not a full stack ---
+		// ItemCharger.InteractServerRpc fills an empty mug (or consumes supply ingredients)
+		// into a drink/food. It builds the result with `new Item(itemData)` — whose ctor
+		// defaults amount to maxStack — and in one branch explicitly does
+		// `outItem.amount = itemData.maxStack`. Vanilla drink maxStack was 1 so a tap gave
+		// one; with stacking on, every tap yields 10/99. We rewrite the result amount to 1
+		// for food/drink while leaving maxStack high, so taps still merge into a stack.
+		[HarmonyPatch(typeof(ItemCharger), "InteractServerRpc")]
+		[HarmonyTranspiler]
+		private static IEnumerable<CodeInstruction> Fix_BarrelDispense(IEnumerable<CodeInstruction> instructions)
+		{
+			ConstructorInfo itemCtor = AccessTools.Constructor(typeof(Item), new[] { typeof(ItemData) });
+			MethodInfo makeOne = AccessTools.Method(typeof(WorldSourceStackFix), nameof(MakeOne));
+			FieldInfo maxStackFld = AccessTools.Field(typeof(ItemData), nameof(ItemData.maxStack));
+			FieldInfo amountFld = AccessTools.Field(typeof(Item), nameof(Item.amount));
+			MethodInfo dispenseAmt = AccessTools.Method(typeof(WorldSourceStackFix), nameof(DispenseAmount));
+
+			List<CodeInstruction> code = new List<CodeInstruction>(instructions);
+			int ctorSwaps = 0, amountSwaps = 0;
+			for (int i = 0; i < code.Count; i++)
+			{
+				// `new Item(itemData)` -> MakeOne(itemData): same stack shape (ItemData -> Item).
+				if (code[i].opcode == OpCodes.Newobj && code[i].operand as ConstructorInfo == itemCtor)
+				{
+					code[i] = new CodeInstruction(OpCodes.Call, makeOne);
+					ctorSwaps++;
+				}
+				// The `ldfld ItemData::maxStack` feeding `stfld Item::amount` (not the
+				// `maxStack > 1` guard, which is followed by a comparison) -> DispenseAmount.
+				else if (code[i].opcode == OpCodes.Ldfld && code[i].operand as FieldInfo == maxStackFld
+					&& i + 1 < code.Count && code[i + 1].opcode == OpCodes.Stfld
+					&& code[i + 1].operand as FieldInfo == amountFld)
+				{
+					code[i] = new CodeInstruction(OpCodes.Call, dispenseAmt);
+					amountSwaps++;
+				}
+			}
+			if (ctorSwaps == 0 && amountSwaps == 0)
+			{
+				StackableFoodPlugin.Log.LogWarning(
+					"WorldSourceStackFix: no dispense sites found in ItemCharger.InteractServerRpc; " +
+					"barrels may still hand out full stacks.");
+			}
+			return code;
+		}
+
+		/// <summary>Builds an item like `new Item(data)` but gives food/drink amount 1.</summary>
+		public static Item MakeOne(ItemData data)
+		{
+			Item it = new Item(data);
+			if (data != null && ServingStackFix.IsServable(data.type))
+			{
+				it.amount = 1;
+			}
+			return it;
+		}
+
+		/// <summary>Replacement for a raw `itemData.maxStack` read used as a produced amount.</summary>
+		public static ushort DispenseAmount(ItemData data)
+		{
+			if (data == null)
+			{
+				return 1;
+			}
+			return ServingStackFix.IsServable(data.type) ? (ushort)1 : data.maxStack;
 		}
 	}
 }
